@@ -32,20 +32,41 @@ class WC_Settings_Payment_Method_Discounts extends WC_Settings_Page {
             ];
         }
 
-        $settings[] = [ 'type' => 'sectionend', 'id' => 'wc_payment_method_discounts_section' ];
+        $settings[] = [
+            'title'    => sprintf( __( '%s Discount Label', 'wc-payment-method-discounts' ), $gateway->title ),
+            'id'       => 'wc_payment_method_discounts_' . $gateway_id . '_label',
+            'type'     => 'text',
+            'desc_tip' => true,
+            'default'  => sprintf( __( 'Discount for %s payment', 'wc-payment-method-discounts' ), $gateway->title )
+        ];
         return $settings;
     }
 
     public function save() {
+        // Call parent save to store fields
+        parent::save();
+    
+        // Collect all discounts and save as array
         $gateways = WC()->payment_gateways()->payment_gateways();
         $discounts = [];
+    
         foreach ( $gateways as $gateway_id => $gateway ) {
-            $type   = sanitize_text_field( $_POST['wc_payment_method_discounts_' . $gateway_id . '_type'] );
-            $amount = floatval( $_POST['wc_payment_method_discounts_' . $gateway_id . '_amount'] );
-            $discounts[$gateway_id] = ['type' => $type, 'amount' => $amount];
+            $type_option   = 'wc_payment_method_discounts_' . $gateway_id . '_type';
+            $amount_option = 'wc_payment_method_discounts_' . $gateway_id . '_amount';
+    
+            $type   = get_option( $type_option, 'none' );
+            $amount = floatval( get_option( $amount_option, 0 ) );
+    
+            $discounts[$gateway_id] = [
+                'type'   => $type,
+                'amount' => $amount,
+                'label'  => get_option( 'wc_payment_method_discounts_' . $gateway_id . '_label', '' )
+            ];
         }
+    
         update_option( 'wc_payment_method_discounts', $discounts );
     }
+    
 }
 
 return new WC_Settings_Payment_Method_Discounts();

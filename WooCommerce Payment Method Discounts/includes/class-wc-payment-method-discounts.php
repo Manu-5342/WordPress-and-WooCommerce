@@ -16,24 +16,30 @@ class WC_Payment_Method_Discounts {
     public function apply_payment_method_discount( $cart ) {
         if ( is_admin() && ! defined( 'DOING_AJAX' ) ) return;
         if ( empty( $cart->get_cart() ) ) return;
-
+    
         $chosen_method = WC()->session->get( 'chosen_payment_method' );
-        if ( ! $chosen_method ) return;
-
+        if ( empty( $chosen_method ) ) return;
+    
         $discounts = get_option( 'wc_payment_method_discounts', [] );
-
-        if ( isset( $discounts[$chosen_method]['type'] ) && isset( $discounts[$chosen_method]['amount'] ) ) {
+    
+        if ( isset( $discounts[$chosen_method]['type'] ) ) {
             $type   = $discounts[$chosen_method]['type'];
             $amount = floatval( $discounts[$chosen_method]['amount'] );
-
+    
             if ( $type === 'percent' ) {
                 $discount = $cart->get_subtotal() * ( $amount / 100 );
-            } else {
+            } elseif ( $type === 'fixed' ) {
                 $discount = $amount;
+            } else {
+                $discount = 0;
             }
-
+    
             if ( $discount > 0 ) {
-                $label = sprintf( __( 'Discount for %s payment', 'wc-payment-method-discounts' ), $chosen_method );
+                // Use custom label if available
+                $label = !empty( $discounts[$chosen_method]['label'] )
+                    ? $discounts[$chosen_method]['label']
+                    : sprintf( __( 'Discount for %s payment', 'wc-payment-method-discounts' ), $chosen_method );
+    
                 $cart->add_fee( $label, -$discount );
             }
         }

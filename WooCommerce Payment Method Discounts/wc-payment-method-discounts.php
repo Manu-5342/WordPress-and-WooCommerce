@@ -2,7 +2,7 @@
 /*
 Plugin Name: WC Payment Method Discounts
 Description: Provide different discounts based on payment methods in WooCommerce.
-Version: 2.0
+Version: 1.2
 Author: Manu Agarwal
 */
 
