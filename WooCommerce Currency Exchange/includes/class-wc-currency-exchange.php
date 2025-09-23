@@ -6,20 +6,19 @@ class WC_Currency_Exchange {
     private $option_name = 'wc_currency_exchange_rates';
 
     public function __construct() {
+        // Admin notice if WooCommerce not active
         if ( ! class_exists( 'WooCommerce' ) ) {
             add_action( 'admin_notices', [ $this, 'admin_notice_woocommerce_required' ] );
-            return;
         }
 
         // Settings tab
         add_filter( 'woocommerce_settings_tabs_array', [ $this, 'add_settings_tab' ], 50 );
         add_action( 'woocommerce_settings_tabs_currency_exchange', [ $this, 'settings_tab_content' ] );
-        add_action( 'woocommerce_update_options_currency_exchange', [ $this, 'update_settings' ] );
 
         // Shortcode
         add_shortcode( 'wc_currency_exchange', [ $this, 'currency_table_shortcode' ] );
 
-        // Convert displayed prices (visual only)
+        // Convert displayed prices
         add_filter( 'woocommerce_get_price_html', [ $this, 'convert_price_html' ], 100, 2 );
         add_filter( 'woocommerce_variable_price_html', [ $this, 'convert_variable_price_html' ], 100, 2 );
     }
@@ -35,10 +34,17 @@ class WC_Currency_Exchange {
     }
 
     public function settings_tab_content() {
+        // ✅ Save first if posted
+        if ( isset($_POST['wc_currency_exchange_nonce']) &&
+            wp_verify_nonce($_POST['wc_currency_exchange_nonce'], 'wc_currency_exchange_save') ) {
+            $this->update_settings();
+            echo '<div class="updated"><p>' . __('Currencies updated.', 'woocommerce-currency-exchange') . '</p></div>';
+        }
+
         $currencies = get_option( $this->option_name, [] );
         ?>
         <h2><?php _e( 'Currency Exchange Settings (Base: INR)', 'woocommerce-currency-exchange' ); ?></h2>
-        <p><?php _e( 'Add currency code, rate vs INR, and optional icon.', 'woocommerce-currency-exchange' ); ?></p>
+        <p><?php _e( 'Add currency code, exchange rate, and optional icon.', 'woocommerce-currency-exchange' ); ?></p>
 
         <form method="post">
             <?php wp_nonce_field( 'wc_currency_exchange_save', 'wc_currency_exchange_nonce' ); ?>
@@ -48,13 +54,23 @@ class WC_Currency_Exchange {
                     <tr>
                         <th><?php _e( 'Icon', 'woocommerce-currency-exchange' ); ?></th>
                         <th><?php _e( 'Currency Code', 'woocommerce-currency-exchange' ); ?></th>
-                        <th><?php _e( 'Rate vs INR', 'woocommerce-currency-exchange' ); ?></th>
+                        <th><?php _e( 'Exchange Rate', 'woocommerce-currency-exchange' ); ?></th>
                         <th><?php _e( 'Remove', 'woocommerce-currency-exchange' ); ?></th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if ( ! empty( $currencies ) ) : 
-                        foreach ( $currencies as $code => $data ) : 
+                    <!-- INR Base Row -->
+                    <tr>
+                        <td>
+                            <span style="font-size: 24px;">₹</span>
+                            <input type="hidden" name="currency_icon[]" value="" class="currency-icon-input" />
+                        </td>
+                        <td><input type="text" name="currency_code[]" value="INR" readonly /></td>
+                        <td><input type="number" step="0.000001" min="0" name="currency_rate[]" value="1.000000" readonly /></td>
+                        <td></td>
+                    </tr>
+                    <?php if ( ! empty( $currencies ) ) :
+                        foreach ( $currencies as $code => $data ) :
                             $rate = isset( $data['rate'] ) ? $data['rate'] : '';
                             $icon = isset( $data['icon'] ) ? $data['icon'] : '';
                             ?>
@@ -78,7 +94,7 @@ class WC_Currency_Exchange {
                         </td>
                         <td><input type="text" name="currency_code[]" placeholder="USD" /></td>
                         <td><input type="number" step="0.000001" min="0" name="currency_rate[]" placeholder="0.012" /></td>
-                        <td></td>
+                        <td><button class="button remove-currency" type="button">Remove</button></td>
                     </tr>
                 </tbody>
             </table>
@@ -110,7 +126,6 @@ class WC_Currency_Exchange {
                 $(this).closest('tr').remove();
             });
 
-            // Media uploader
             var mediaUploader;
             $('#currency-exchange-table').on('click','.upload-currency-icon',function(e){
                 e.preventDefault();
@@ -118,26 +133,19 @@ class WC_Currency_Exchange {
                 var input = button.closest('td').find('.currency-icon-input');
                 var preview = button.closest('td').find('.currency-icon-preview');
 
-                if (mediaUploader) {
-                    mediaUploader.open();
-                    return;
-                }
-
-                mediaUploader = wp.media.frames.file_frame = wp.media({
+                var frame = wp.media({
                     title: 'Choose Icon',
-                    button: {
-                        text: 'Choose Icon'
-                    },
+                    button: { text: 'Choose Icon' },
                     multiple: false
                 });
 
-                mediaUploader.on('select', function(){
-                    var attachment = mediaUploader.state().get('selection').first().toJSON();
+                frame.on('select', function(){
+                    var attachment = frame.state().get('selection').first().toJSON();
                     input.val(attachment.url);
                     preview.attr('src', attachment.url);
                 });
 
-                mediaUploader.open();
+                frame.open();
             });
         })(jQuery);
         </script>
@@ -146,9 +154,6 @@ class WC_Currency_Exchange {
 
     public function update_settings() {
         if ( ! current_user_can( 'manage_woocommerce' ) ) return;
-        if ( ! isset( $_POST['wc_currency_exchange_nonce'] ) || ! wp_verify_nonce( wp_unslash( $_POST['wc_currency_exchange_nonce'] ), 'wc_currency_exchange_save' ) ) {
-            return;
-        }
 
         $codes = isset( $_POST['currency_code'] ) ? (array) $_POST['currency_code'] : [];
         $rates = isset( $_POST['currency_rate'] ) ? (array) $_POST['currency_rate'] : [];
@@ -159,7 +164,7 @@ class WC_Currency_Exchange {
             $code = strtoupper( sanitize_text_field( $code ) );
             $rate = isset( $rates[ $i ] ) ? floatval( $rates[ $i ] ) : 0;
             $icon = isset( $icons[ $i ] ) ? esc_url_raw( $icons[ $i ] ) : '';
-            if ( $code !== '' && $rate > 0 ) {
+            if ( $code !== '' && $code !== 'INR' && $rate > 0 ) {
                 $currencies[ $code ] = ['rate'=>$rate,'icon'=>$icon];
             }
         }
@@ -184,7 +189,7 @@ class WC_Currency_Exchange {
                     <th><?php _e('Select','woocommerce-currency-exchange'); ?></th>
                     <th><?php _e('Icon','woocommerce-currency-exchange'); ?></th>
                     <th><?php _e('Currency','woocommerce-currency-exchange'); ?></th>
-                    <th><?php _e('Rate vs INR','woocommerce-currency-exchange'); ?></th>
+                    <th><?php _e('Exchange Rate','woocommerce-currency-exchange'); ?></th>
                 </tr>
             </thead>
             <tbody>
@@ -194,7 +199,7 @@ class WC_Currency_Exchange {
                     <td><?php echo esc_html( get_woocommerce_currency() ); ?> (Base INR)</td>
                     <td>1.00</td>
                 </tr>
-                <?php foreach ( $currencies as $code => $data ) : 
+                <?php foreach ( $currencies as $code => $data ) :
                     $rate = $data['rate'];
                     $icon = $data['icon'];
                     ?>
