@@ -2,7 +2,7 @@
 /**
  * Plugin Name: WooCommerce Currency Switcher
  * Description: Add custom currencies with exchange rates and frontend switcher dropdown.
- * Version: 2.1
+ * Version: 2.2
  * Author: Manu Agarwal
  */
 
