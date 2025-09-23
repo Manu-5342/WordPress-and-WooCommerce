@@ -8,7 +8,6 @@ class WCCS_Frontend {
         add_filter('woocommerce_product_get_sale_price',[$this,'convert'],10,2);
 
         add_shortcode('wccs_switcher',[$this,'shortcode']);
-
         add_action('wp_enqueue_scripts',[$this,'assets']);
     }
 
@@ -34,11 +33,11 @@ class WCCS_Frontend {
         <div class="wccs-switcher">
             <label><?php _e('Currency','wccs'); ?>:</label>
             <select id="wccs_currency_select">
-            <?php foreach($currencies as $code=>$data): ?>
-                <option value="<?php echo esc_attr($code); ?>" <?php selected($current,$code); ?>>
-                    <?php echo esc_html($data['symbol'].' '.$code); ?>
-                </option>
-            <?php endforeach; ?>
+                <?php foreach($currencies as $code=>$data): ?>
+                    <option value="<?php echo esc_attr($code); ?>" <?php selected($current,$code); ?>>
+                        <?php echo esc_html($data['symbol'].' '.$code); ?>
+                    </option>
+                <?php endforeach; ?>
             </select>
         </div>
         <?php
